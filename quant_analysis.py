@@ -6,6 +6,7 @@ from tabulate import tabulate  # For better table formatting in terminal
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
+from IPython.display import display
 
 # Load the Excel file
 file_path = "Quantathon_Data_2025_Edited.xlsx"  # Ensure this file is in the same directory as the script
@@ -97,11 +98,26 @@ if not missing_df.empty:
  Static Market:
     if neither met
 '''
-    
+    # Compute cumulative maximum and cumulative minimum of S&P500 prices
+df['CumMax'] = df['S&P500'].cummax()  # Highest price seen up to that day
+df['CumMin'] = df['S&P500'].cummin()  # Lowest price seen up to that day
+
+# Initialize Market_State with a default value (e.g. 'Static')
+df['Market_State'] = 'Static'
+
+# Classify Bear Market: if current price <= 80% of cumulative maximum
+df.loc[df['S&P500'] <= 0.8 * df['CumMax'], 'Market_State'] = 'Bear'
+
+# Classify Bull Market: if current price >= 120% of cumulative minimum
+df.loc[df['S&P500'] >= 1.2 * df['CumMin'], 'Market_State'] = 'Bull'
+
+# Drop helper columns no longer needed
+df = df.drop(columns=['CumMax', 'CumMin'])
 
 # Display processed data in a table format
 print("\n Sample Processed Data:")
-print(tabulate(df.head(12), headers='keys', tablefmt='grid'))
+#print(tabulate(df.head(12), headers='keys', tablefmt='grid'))
+display(df.head(20))
 
 # Save the cleaned data
 df.to_excel("Processed_Quantathon_Data_Edited.xlsx", index=False)
