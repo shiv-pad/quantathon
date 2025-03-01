@@ -54,6 +54,10 @@ Low number - Small daily price changes
 df['Volatility_10d'] = df['Log_Returns'].rolling(window=10).std()
 
 # Compute 3-day momentum to detect short-term market trends
+'''
++ momentum = prices increasing
+- momentum = prices decresing
+'''
 df['Momentum_3d'] = (df['S&P500'] - df['S&P500'].shift(3)) / df['S&P500'].shift(3)
 
 # Ensure PrDec & PrInc sum to at most 1
