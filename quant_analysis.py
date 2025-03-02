@@ -172,9 +172,8 @@ def predict_market_state(df, prediction_window=3):
 # Implement a more efficient backtest strategy
 def backtest_strategy(df, initial_investment=10000, start_date='2019-01-01', end_date='2022-12-31'):
     """
-    Modified backtesting with more reasonable leverage and returns
+    Modified backtesting with bond returns that account for both yield and price changes
     """
-    # Strictly filter the date range first
     backtest_df = df[(df['Date_S&P'] >= start_date) & (df['Date_S&P'] <= end_date)].copy()
     
     # Ensure numeric columns
@@ -182,16 +181,16 @@ def backtest_strategy(df, initial_investment=10000, start_date='2019-01-01', end
     for col in numeric_cols:
         backtest_df[col] = pd.to_numeric(backtest_df[col], errors='coerce')
     
-    # Calculate returns
+    # Calculate S&P returns
     backtest_df['S&P_Daily_Return'] = backtest_df['S&P500'].pct_change().fillna(0)
     
-    # Completely revamped bond return calculation
-    # Convert annual rate to daily rate and account for compounding
-    backtest_df['Bond_Daily_Return'] = backtest_df['Bond_Rate'].apply(lambda x: (1 + x/100)**(1/252) - 1)
-    
-    # Calculate additional return metrics needed for strategy
-    backtest_df['SP_1day_Return'] = backtest_df['S&P500'].pct_change(periods=1)
-    backtest_df['SP_3day_Return'] = backtest_df['S&P500'].pct_change(periods=3)
+    # Calculate bond returns including both yield and price effect
+    # Assume 5-year duration for the bond portfolio
+    DURATION = 5
+    backtest_df['Rate_Change'] = backtest_df['Bond_Rate'].diff()
+    backtest_df['Bond_Price_Return'] = -DURATION * backtest_df['Rate_Change'] / 100  # Price effect
+    backtest_df['Bond_Yield_Return'] = backtest_df['Bond_Rate'] / 100 / 252  # Yield effect
+    backtest_df['Bond_Daily_Return'] = backtest_df['Bond_Price_Return'] + backtest_df['Bond_Yield_Return']
     
     # Initialize signal
     backtest_df['Signal'] = 1.0
@@ -221,21 +220,21 @@ def backtest_strategy(df, initial_investment=10000, start_date='2019-01-01', end
     portfolio_values = np.zeros(len(backtest_df))
     portfolio_values[0] = initial_investment
     
-    # Completely revamped bond benchmark calculation
+    # Calculate bond values
     bond_values = np.zeros(len(backtest_df))
     bond_values[0] = initial_investment
     
-    # Calculate both portfolio and bond values using daily compounding
+    # Calculate portfolio values
     for i in range(1, len(backtest_df)):
         sp_return = backtest_df['S&P_Daily_Return'].iloc[i]
         bond_return = backtest_df['Bond_Daily_Return'].iloc[i]
         signal = backtest_df['Signal'].iloc[i]
         
+        # Portfolio return calculation
+        portfolio_return = (signal * sp_return) + ((1 - signal) * bond_return)
         if signal > 1.0:
-            borrowing_cost = (signal - 1.0) * (bond_return + 0.02/365)
-            portfolio_return = (signal * sp_return) - borrowing_cost + ((1 - signal) * bond_return)
-        else:
-            portfolio_return = (signal * sp_return) + ((1 - signal) * bond_return)
+            borrowing_cost = (signal - 1.0) * (bond_return + 0.02/252)
+            portfolio_return -= borrowing_cost
             
         portfolio_values[i] = portfolio_values[i-1] * (1 + portfolio_return)
         bond_values[i] = bond_values[i-1] * (1 + bond_return)
